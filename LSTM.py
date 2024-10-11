@@ -171,4 +171,32 @@ class LSTM():
             ot = sig_output_gate[t].output
 
             # finally repeat for c-tilde
+            outc_tilde = np.dot(self.Ug,x) + np.dot(self.wg,ht) + self.bg
+            tan_1[t].forward(outc_tilde)
+            c_tilde = tan_1[t].output
+
+            # combine input gate and forget gate to add to long term memory
+            # multiply forget with long term to determine remember ration
+            # multiply input with c_tilde (last gate) to determine how much we use new data
+            # add new data to long term
+            ct = np.multiply(ft,ct) + np.multiply(it,c_tilde)
+            # pass this new long term to tanh to determine short term by mutliplying it with output of sig act
+            # sig activ (0 to 1) * tan activ(-1 to 1)
+            tan_2[t].forward(ct)
+            ht = np.multiply(tan_2[t].output,ot)
+
+            # update our short (h) long (c) and ctilde logs 
+            H[t+1] = ht
+            C[t+1] = ct
+            C_tilde[t] = c_tilde
+            
+            #update logs of innter values
+            F[t] = ft
+            O[t] = ot
+            I[t] = it
+            # return values
+            return (H,C,sig_forget_gate,sig_input_gate,sig_output_gate,tan_1,tan_2,F,O,I)
+
+
+
 
