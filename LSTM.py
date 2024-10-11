@@ -137,10 +137,10 @@ class LSTM():
         self.O = O
         self.I = I
         self.C_tilde = C_tilde
-
+        #save short and long term memory
         self.H=H
         self.C = C
-
+        # save activaton function states
         self.Sigf = sig_forget_gate
         self.Sigi = sig_input_gate
         self.Sigo = sig_output_gate
@@ -199,6 +199,109 @@ class LSTM():
             # return values
             return (H,C,sig_forget_gate,sig_input_gate,sig_output_gate,tan_1,tan_2,F,O,I,C_tilde)
 
+    def backward_pass(self,dvalues):
+        # grab our max vector size, short term, and long term memory
+        T = self.max_vector
+        H = self.H
+        C = self.C
+        # our saved inner gate values
+        O = self.O
+        I = self.I
+        C_Tilde = self.C_tilde
 
+        # data
+        data = self.data
+        #activation functions
+
+        sigf = self.Sigf
+        sigi = self.Sigi
+        sigo = self.Sigo 
+        tan1 = self.Tan1
+        tan2 = self.Tan2
+
+        #BPTT
+        dht  = dvalues[-1,:].reshape(self.n_states,1)
+
+        for t in reversed(range(T)):
+            # working backwards 
+            
+            # get data in form we can work with
+            xt = data.reshape[t](1,1)
+
+            #backwards prop to get dtan2
+            tan2[t].backwards(dht)
+            #store output of backwards call
+            dtanh2 = tan2[t].dinputs
+
+            # dht with respect to tanh
+            dhttanh = np.multiply(O[t],dtanh2)
+
+            # dct with respect to dft
+            dctdft =np.multiply(dhttanh,C[t-1])
+
+            #dct with respect to dit
+            dctdit = np.multiply(dhttanh,C_Tilde[t])
+
+            #dct with respect to dct_tilde
+            dctdct_tilde = np.multiply(dhttanh,I[t])
+
+            #backwards prop to get dtan1
+            tan1[t].backwards(dctdct_tilde)
+            #store output of backwards call
+            dtanh1 = tan1[t].dinputs
+
+            # backwards prop of sig for forget gate
+            sigf[t].backwards(dctdft)
+            dsigmf = sigf[t].dinputs
+
+            # backwards prop of sig for input  gate
+            sigi[t].backwards(dctdit)
+            dsigmi = sigi[t].dinputs
+
+            # backwards prop of sig for output gate
+            sigo[t].backwards(np.multiply(dht,tan2[t].output))
+            dsigmo = sigo[t].dinputs
+
+            # derivative to update
+            dsigmfUf = np.dot(dsigmf,xt)
+            dsigmfWf = np.dot(dsigmf,H[t-1].T)
+            
+            #update forget gates weights and bias 
+            self.dUf += dsigmfUf
+            self.dwf += dsigmfWf
+            self.dbf += dsigmf
+
+            # derivative to update
+            dsigmidUi = np.dot(dsigmi,xt)
+            dsigmidWi = np.dot(dsigmi,H[t-1].T)
+            
+            # never drink and drive or you will get a..
+            self.dUi +=dsigmidUi
+            self.dwi +=dsigmidWi
+            self.dbi += dsigmi
+
+            # repeat for output gate
+            dsigmodUo = np.dot(dsigmo,xt)
+            dsigmodWo = np.dot(dsigmo,H[t-1].T)
+
+            #update weights and bias
+            self.dUo +=dsigmodUo
+            self.dwo +=dsigmodWo
+            self.dbo += dsigmo
+
+            #repeat for dtan
+            dtanh1Ug = np.dot(dtanh1,xt)
+            dtanh1Wg = np.dot(dtanh1,H[t-1].T)
+            
+            #update weights and bias                
+            self.dUg +=dtanh1Ug
+            self.dwg += dtanh1Wg
+            self.dbg += dtanh1
+
+            #finally, we find derivative of short term memory
+            dht = np.dot(self.wf,dsigmf) + np.dot(self.wi,dsigmi) 
+            +np.dot(self.wo,dsigmo) + np.dot(self.wg,dtanh1) 
+            +dvalues[t-1,:].reshape(self.n_states,1)
+        self.H = H
 
 
