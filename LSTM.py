@@ -35,12 +35,41 @@ class LSTM():
         self.max_vector = max(data.shape)
         # save data in class
         self.data = data
-        # set up lists to store for short term, long term, and c_tilde (last gate) states at points 0-(t-1)
+        # set up lists to store for short term, long term, and c_tilde (last gate) states at timestamps 0 to t
         self.short_term = [np.zeros((self.n_states,1)) for x in range(self.max_vector+1)]
-        self.long_term = [np.zeros((self.n_states,1)) for x in range(self.max_vector+1)]
-        self.c_tilde = [np.zeros((self.n_states,1)) for x in range(self.max_vector)]
+        self.long_term  = [np.zeros((self.n_states,1)) for x in range(self.max_vector+1)]
+        self.c_tilde    = [np.zeros((self.n_states,1)) for x in range(self.max_vector)]
 
         # set up lists to store gate inner values at points 0-(t-1) (for debugging later)
         self.forget_gate = [np.zeros((self.n_states,1)) for x in range(self.max_vector)]
-        self.input_gate = [np.zeros((self.n_states,1)) for x in range(self.max_vector)]
+        self.input_gate  = [np.zeros((self.n_states,1)) for x in range(self.max_vector)]
         self.output_gate = [np.zeros((self.n_states,1)) for x in range(self.max_vector)]    
+
+        self.I = [[np.zeros((self.n_states,1)) for x in range(self.max_vector)]]
+        
+        #store derivative (gradients) of gate values (delta of learnables)
+
+        # forget gate values
+        self.dUf = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dbf = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dwf = 0.1*np.random.rand(self.n_states,self.n_states)
+
+        # input gate values
+        self.dUi = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dbi = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dwi = 0.1*np.random.rand(self.n_states,self.n_states)
+
+        #output gate values
+        self.dUo = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dbo = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dwo = 0.1*np.random.rand(self.n_states,self.n_states)
+
+        #output gate values
+        self.dUo = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dbo = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dwo = 0.1*np.random.rand(self.n_states,self.n_states)
+
+        # c tilde
+        self.dUg = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dbg = 0.1*np.random.rand(self.n_states,self.n_features)
+        self.dwg = 0.1*np.random.rand(self.n_states,self.n_states)
