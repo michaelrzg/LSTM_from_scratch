@@ -35,8 +35,22 @@ class Tanh_Activation():
         # store x * dx
         self.dinputs = np.multiply(dx,outer_derivatives)
 
+class Dense():
+    
+    def __init__(self, n_inputs, n_neurons) -> None:
+        self.weights = 0.1*np.random.randn(n_inputs,n_neurons)
+        self.bias = np.zeros((1,n_neurons))
+    #forward propogation
+    def forward(self,inputs):
+        self.output = np.dot(inputs,self.weights) + self.bias
+        self.inputs = inputs
+    #back propogation
+    def backward(self,dvalues):
+        self.dweights = np.dot(self.inputs.T,dvalues)
+        self.dbias = np.sum(dvalues,axis=0,keepdims=True)
+        self.dinputs = np.dot(dvalues,self.weights.T)
 
-class LSTM():   
+class LSTM():     
     def __init__(self, n_states, n_features) -> None:
         # num of n_states
         self.n_states = n_states
