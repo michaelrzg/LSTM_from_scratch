@@ -40,6 +40,8 @@ class LSTM():
     def __init__(self, n_states, n_features) -> None:
         # num of n_states
         self.n_states = n_states
+        # num of features
+        self.n_features = n_features
         # learnables
         # forget gate values
         self.Uf = 0.1*np.random.rand(n_states,n_features)
@@ -153,7 +155,7 @@ class LSTM():
 
             # forget gate (determine how much of long term memory we will remember or 'forget')
             # outout = input * weight + short term * short term weight + forget gate bias
-            outputf = np.dot(self.Uf, x) + np.dot(self.Wf,ht) + self.bf
+            outputf = np.dot(self.Uf, x) + np.dot(self.wf,ht) + self.bf
             # take sigmoid to return value between 0 and 1
             # use our predefined array of sigmoid objects 
             sig_forget_gate[t].forward(outputf)
@@ -161,12 +163,12 @@ class LSTM():
             ft = sig_forget_gate[t].output
 
             #repeat for input gate
-            outputi = np.dot(self.Ui, x) + np.dot(self.Wi,ht) + self.bi
+            outputi = np.dot(self.Ui, x) + np.dot(self.wi,ht) + self.bi
             sig_input_gate[t].forward(outputi)
             it = sig_input_gate[t].output
 
             #repeat for output gate
-            outputo = np.dot(self.Uo, x) + np.dot(self.Wo,ht) + self.bo
+            outputo = np.dot(self.Uo, x) + np.dot(self.wo,ht) + self.bo
             sig_output_gate[t].forward(outputo)
             ot = sig_output_gate[t].output
 
@@ -195,7 +197,7 @@ class LSTM():
             O[t] = ot
             I[t] = it
             # return values
-            return (H,C,sig_forget_gate,sig_input_gate,sig_output_gate,tan_1,tan_2,F,O,I)
+            return (H,C,sig_forget_gate,sig_input_gate,sig_output_gate,tan_1,tan_2,F,O,I,C_tilde)
 
 
 
