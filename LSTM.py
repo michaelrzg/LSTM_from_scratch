@@ -145,6 +145,30 @@ class LSTM():
         self.Tan1 = tan_1
         self.Tan2 = tan_2
 
-    def lstm_cell( data,ht,ct,sig_forget_gate,sig_input_gate,sig_output_gate,tan_1,tan_2,H,C,F,O,I,C_tilde ):
+    def lstm_cell(self,data,ht,ct,sig_forget_gate,sig_input_gate,sig_output_gate,tan_1,tan_2,H,C,F,O,I,C_tilde ):
+        # for each datapoint time stamp
         for t, x in enumerate(data):
+            # reshape so we can use dot
             x = x.reshape(1,1)
+
+            # forget gate (determine how much of long term memory we will remember or 'forget')
+            # outout = input * weight + short term * short term weight + forget gate bias
+            outputf = np.dot(self.Uf, x) + np.dot(self.Wf,ht) + self.bf
+            # take sigmoid to return value between 0 and 1
+            # use our predefined array of sigmoid objects 
+            sig_forget_gate[t].forward(outputf)
+            #grab output for later
+            ft = sig_forget_gate[t].output
+
+            #repeat for input gate
+            outputi = np.dot(self.Ui, x) + np.dot(self.Wi,ht) + self.bi
+            sig_input_gate[t].forward(outputi)
+            it = sig_input_gate[t].output
+
+            #repeat for output gate
+            outputo = np.dot(self.Uo, x) + np.dot(self.Wo,ht) + self.bo
+            sig_output_gate[t].forward(outputo)
+            ot = sig_output_gate[t].output
+
+            # finally repeat for c-tilde
+
