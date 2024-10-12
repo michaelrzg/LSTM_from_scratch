@@ -45,7 +45,6 @@ self.dwg = 0.1*np.random.rand(self.n_neurons,self.n_neurons)
 
 Once we have our values initilzed, we can begin our first pass. We start by calculating the 'forget gate' which determines what ratio of our previous long term memory we are going to utilize for this pass.
 
-image here
 
 To determine the forget gates outcome, we find the dot product of our input and our short term memory [t] times our input weights and our short term memory weight for at [t] and add or bias:
 
@@ -70,7 +69,10 @@ This value (ft) will be multiplied to our long term memory (C) in the next step.
 
 The next step has 2 substeps: (1) calculating what percentage of our new value to add or 'remember' in our long term memory and (2) determining the actual value to add.
 
-insert image
+
+<p align = "center">
+<img width="421" alt="Screenshot 2024-10-11 at 8 22 40 PM" src="https://github.com/user-attachments/assets/673de1db-7bed-4b7b-9490-df7419ea2777">
+</p>
 
 We start by calculating same liner combination as our forget gate but with out input gate.
 
@@ -104,7 +106,9 @@ Now out long term memort is updated.
 
 ### Step 5: Updating Shourt Term Memory
 
-insert image
+<p align="center">
+<img width="438" alt="Screenshot 2024-10-11 at 8 31 50 PM" src="https://github.com/user-attachments/assets/cb9449dd-17a0-4af6-8e89-d2e6741f2705">
+</p>
 
 Finally, we update the short term memory to end this iteration and pass the values to the next iteration.
 We update the Short Term Memory by multiplying the outcome of the output gate by the TanH of the long term memory.
