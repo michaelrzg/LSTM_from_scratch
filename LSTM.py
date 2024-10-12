@@ -2,7 +2,8 @@
 # Michael Rizig
 
 import numpy as np
-
+import random
+import matplotlib.pyplot as plt
 # sigmoid activation function
 class Sigmoid_Activation():
     
@@ -53,267 +54,239 @@ class Dense():
         self.dbias = np.sum(dvalues,axis=0,keepdims=True)
         self.dinputs = np.dot(dvalues,self.weights.T)
 
-class LSTM():     
-    def __init__(self, nodes) -> None:
-        # num of n_neurons
-        self.n_neurons = nodes
-        # num of features
-        self.n_features = 1
-        # learnables
-        # forget gate values
-        self.Uf = 0.1*np.random.rand(nodes,1)
-        self.bf = 0.1*np.random.rand(nodes,1)
-        self.wf = 0.1*np.random.rand(nodes,nodes)
+class LSTM():
+    
+    def __init__(self, n_neurons):
+    
+        self.n_neurons = n_neurons
+        
+        #forget gate
+        self.Uf        = 0.1*np.random.randn(n_neurons, 1)
+        self.bf        = 0.1*np.random.randn(n_neurons, 1)
+        self.wf        = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        #input gate
+        self.Ui        = 0.1*np.random.randn(n_neurons, 1)
+        self.bi        = 0.1*np.random.randn(n_neurons, 1)
+        self.wi        = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        #output gate
+        self.Uo        = 0.1*np.random.randn(n_neurons, 1)
+        self.bo        = 0.1*np.random.randn(n_neurons, 1)
+        self.wo        = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        #C tilde
+        self.Ug        = 0.1*np.random.randn(n_neurons, 1)
+        self.bg        = 0.1*np.random.randn(n_neurons, 1)
+        self.wg        = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        
+    def forward(self, X_t):
+        
+        T = max(X_t.shape)
+        
+        self.T = T
+        
+        n_neurons = self.n_neurons
+        
+        self.H         = [np.zeros((n_neurons,1)) for t in range(T+1)]
+        self.C         = [np.zeros((n_neurons,1)) for t in range(T+1)]
+        self.C_tilde   = [np.zeros((n_neurons,1)) for t in range(T)]
+        
+        #keeping track of forget (f), output (o) and input (i) gate for BPTT
+        self.F         = [np.zeros((n_neurons,1)) for t in range(T)]
+        self.O         = [np.zeros((n_neurons,1)) for t in range(T)]
+        self.I         = [np.zeros((n_neurons,1)) for t in range(T)]
+        
+        #initializing dweights
+        #forget gate
+        self.dUf = 0.1*np.random.randn(n_neurons, 1)
+        self.dbf = 0.1*np.random.randn(n_neurons, 1)
+        self.dWf = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        #imput gate
+        self.dUi = 0.1*np.random.randn(n_neurons, 1)
+        self.dbi = 0.1*np.random.randn(n_neurons, 1)
+        self.dWi = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        #output gate
+        self.dUo = 0.1*np.random.randn(n_neurons, 1)
+        self.dbo = 0.1*np.random.randn(n_neurons, 1)
+        self.dWo = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        #C tilde
+        self.dUg = 0.1*np.random.randn(n_neurons, 1)
+        self.dbg = 0.1*np.random.randn(n_neurons, 1)
+        self.dWg = 0.1*np.random.randn(n_neurons, n_neurons)
+        
+        
+        #instances of activation functions for BPTT
+        Sigmf    = [Sigmoid_Activation() for i in range(T)]
+        Sigmi    = [Sigmoid_Activation() for i in range(T)]
+        Sigmo    = [Sigmoid_Activation() for i in range(T)]
+        
+        Tanh1    = [Tanh_Activation() for i in range(T)]
+        Tanh2    = [Tanh_Activation() for i in range(T)]
+        
+        self.X_t = X_t
 
-        # input gate values
-        self.Ui = 0.1*np.random.rand(nodes,1)
-        self.bi = 0.1*np.random.rand(nodes,1)
-        self.wi = 0.1*np.random.rand(nodes,nodes)
+        
+        ht       = self.H[0]# initial state vector
+        ct       = self.C[0]# initial state vector
 
-        #output gate values
-        self.Uo = 0.1*np.random.rand(nodes,1)
-        self.bo = 0.1*np.random.rand(nodes,1)
-        self.wo = 0.1*np.random.rand(nodes,nodes)
-
-        #output gate values
-        self.Uo = 0.1*np.random.rand(nodes,1)
-        self.bo = 0.1*np.random.rand(nodes,1)
-        self.wo = 0.1*np.random.rand(nodes,nodes)
-
-        # c tilde
-        self.Ug = 0.1*np.random.rand(nodes,1)
-        self.bg = 0.1*np.random.rand(nodes,1)
-        self.wg = 0.1*np.random.rand(nodes,nodes)
-
-    def forward_pass(self,data):
-        # find vector length
-        self.max_vector = max(data.shape)
-        # save data in class
-        self.data = data
-        # set up lists to store for short term, long term, and c_tilde (last gate) states at timestamps 0 to t
-        self.short_term_memory = [np.zeros((self.n_neurons,1)) for x in range(self.max_vector+1)]
-        self.long_term_memory  = [np.zeros((self.n_neurons,1)) for x in range(self.max_vector+1)]
-        self.update_gate    = [np.zeros((self.n_neurons,1)) for x in range(self.max_vector)]
-
-        # set up lists to store gate inner values at points 0-(t-1) (for debugging later)
-        self.forget_gate = [np.zeros((self.n_neurons,1)) for x in range(self.max_vector)]
-        self.output_gate  = [np.zeros((self.n_neurons,1)) for x in range(self.max_vector)]
-        self.input_gate = [np.zeros((self.n_neurons,1)) for x in range(self.max_vector)]    
-
-        #store derivative (gradients) of gate values (delta of learnables)
-
-        # forget gate values
-        self.dUf = 0.1*np.random.rand(self.n_neurons,1)
-        self.dbf = 0.1*np.random.rand(self.n_neurons,1)
-        self.dwf = 0.1*np.random.rand(self.n_neurons,self.n_neurons)
-
-        # input gate values
-        self.dUi = 0.1*np.random.rand(self.n_neurons,1)
-        self.dbi = 0.1*np.random.rand(self.n_neurons,1)
-        self.dwi = 0.1*np.random.rand(self.n_neurons,self.n_neurons)
-
-
-        #output gate values
-        self.dUo = 0.1*np.random.rand(self.n_neurons,1)
-        self.dbo = 0.1*np.random.rand(self.n_neurons,1)
-        self.dwo = 0.1*np.random.rand(self.n_neurons,self.n_neurons)
-
-        # c tilde
-        self.dUg = 0.1*np.random.rand(self.n_neurons,1)
-        self.dbg = 0.1*np.random.rand(self.n_neurons,1)
-        self.dwg = 0.1*np.random.rand(self.n_neurons,self.n_neurons)
-
-        # set up activation functions for each gate
-        # since each activation function has its own values to store, we need objects
-        forget_gate_sigmoid = [Sigmoid_Activation() for x in range(self.max_vector)]
-        input_gate_sigmoid = [Sigmoid_Activation() for x in range(self.max_vector)]
-        output_gate_sigmoid = [Sigmoid_Activation() for x in range(self.max_vector)]
-
-        #we have 2 tan gates in input and output
-
-        tan_1 = [Tanh_Activation() for x in range(self.max_vector)]
-        tan_2 = [Tanh_Activation() for x in range(self.max_vector)]
-
-        # set our initial outer and inner memories at t=0
-        ht = self.short_term_memory[0]
-        ct = self.long_term_memory[0]
-        # run cell to progress t and  generate values
-        [H, C,self.Sigmf,self.Sigmi, self.Sigmo, self.tan_1, self.tan_2,F,O,I,C_tilde] =self.lstm_cell(
-            data,ht,ct,forget_gate_sigmoid,input_gate_sigmoid,output_gate_sigmoid,tan_1,tan_2,self.short_term_memory,self.long_term_memory,self.forget_gate,self.output_gate,
-            self.input_gate,self.update_gate
-        )
-
-        # save outputs of cell
-        self.forget_gate = F
-        self.output_gate = O
-        self.input_gate = I
-        self.update_gate = C_tilde
-        #save short and long term memory
-        self.short_term_memory=H
-        self.long_term_memory = C
-        # save activaton function states
-        self.Sigf = forget_gate_sigmoid
-        self.Sigi = input_gate_sigmoid
-        self.Sigo = output_gate_sigmoid
-        self.Tan1 = tan_1
-        self.Tan2 = tan_2
-
-    def lstm_cell(self,data,ht,ct,Sigmf,Sigmi,Sigmo,tan_1,tan_2,H,C,F,O,I,C_tilde ):
-        # for each datapoint time stamp
-        for t, x in enumerate(data):
-            # reshape so we can use dot
-            x = x.reshape(1,1)
-
-            # forget gate (determine how much of long term memory we will remember or 'forget')
-            # outout = input * weight + short term * short term weight + forget gate bias
-            outputf = np.dot(self.Uf, x) + np.dot(self.wf,ht) + self.bf
-            # take sigmoid to return value between 0 and 1
-            # use our predefined array of sigmoid obje-cts 
-            Sigmf[t].forward(outputf)
-            #grab output for later
-            ft = Sigmf[t].output
-
-            #repeat for input gate
-            outputi = np.dot(self.Ui, x) + np.dot(self.wi,ht) + self.bi
-            Sigmi[t].forward(outputi)
-            it = Sigmi[t].output
-
-            #repeat for output gate
-            outputo = np.dot(self.Uo, x) + np.dot(self.wo,ht) + self.bo
-            Sigmo[t].forward(outputo)
-            ot = Sigmo[t].output
-
-            # finally repeat for c-tilde
-            outc_tilde = np.dot(self.Ug,x) + np.dot(self.wg,ht) + self.bg
-            tan_1[t].forward(outc_tilde)
-            c_tilde = tan_1[t].output
-
-            # combine input gate and forget gate to add to long term memory
-            # multiply forget with long term to determine remember ration
-            # multiply input with c_tilde (last gate) to determine how much we use new data
-            # add new data to long term
-            ct = np.multiply(ft,ct) + np.multiply(it,c_tilde)
-            # pass this new long term to tanh to determine short term by mutliplying it with output of sig act
-            # sig activ (0 to 1) * tan activ(-1 to 1)
-            tan_2[t].forward(ct)
-            ht = np.multiply(tan_2[t].output,ot)
-
-            # update our short (h) long (c) and ctilde logs 
-            H[t+1] = ht
-            C[t+1] = ct
-            C_tilde[t] = c_tilde
+        
+        [H, C, Sigmf, Sigmi, Sigmo, Tanh1, Tanh2, F, O, I, C_tilde]\
+            = self.LSTMCell(X_t, ht, ct, Sigmf, Sigmi, Sigmo, Tanh1, Tanh2,\
+                            self.H, self.C, self.F, self.O, self.I, self.C_tilde)
+        
+        self.F       = F
+        self.O       = O
+        self.I       = I
+        self.C_tilde = C_tilde
+        
+        self.H       = H
+        self.C       = C
+        
+        self.Sigmf   = Sigmf
+        self.Sigmi   = Sigmi
+        self.Sigmo   = Sigmo
+        self.Tanh1   = Tanh1
+        self.Tanh2   = Tanh2
+        
+    
+    def LSTMCell(self, X_t, ht, ct,\
+                                   Sigmf, Sigmi, Sigmo, Tanh1, Tanh2,\
+                                       H, C, F, O, I, C_tilde):
+        
+        for t, xt in enumerate(X_t):
             
-            #update logs of innter values
-            F[t] = ft
-            O[t] = ot
-            I[t] = it
-            # return values
-        return (H,C,Sigmf,Sigmi,Sigmo,tan_1,tan_2,F,O,I,C_tilde)
+            xt = xt.reshape(1,1)
+            
+            #forget gate
+            outf = np.dot(self.Uf, xt) + np.dot(self.wf, ht) + self.bf
+            Sigmf[t].forward(outf)
+            ft   = Sigmf[t].output
+            
+            #input gate
+            outi = np.dot(self.Ui, xt) + np.dot(self.wi, ht) + self.bi
+            Sigmi[t].forward(outi)
+            it   = Sigmi[t].output
+            
+            #output gate
+            outo = np.dot(self.Uo, xt) + np.dot(self.wo, ht) + self.bo
+            Sigmo[t].forward(outo)
+            ot   = Sigmo[t].output
 
-    def backward_pass(self,dvalues):
-        # grab our max vector size, short term, and long term memory
-        T = self.max_vector
-        H = self.short_term_memory
-        C = self.long_term_memory
-        # our saved inner gate values
-        O = self.output_gate
-        I = self.input_gate
-        C_Tilde = self.update_gate
+            #C tilde
+            outct_tilde = np.dot(self.Ug, xt) + np.dot(self.wg, ht) + self.bg
+            Tanh1[t].forward(outct_tilde)
+            ct_tilde = Tanh1[t].output
+            
+            #Ct, element-wise multiplication
+            ct = np.multiply(ft,ct) + np.multiply(it,ct_tilde)
+            
+            #ht
+            Tanh2[t].forward(ct)
+            ht = np.multiply(Tanh2[t].output,ot)
 
-        # data
-        data = self.data
-        #activation functions
 
-        sigf = self.Sigf
-        sigi = self.Sigi
-        sigo = self.Sigo 
-        tan1 = self.Tan1
-        tan2 = self.Tan2
-
-        #BPTT
-        dht  = dvalues[-1,:].reshape(self.n_neurons,1)
-
+            H[t+1]     = ht
+            C[t+1]     = ct
+            C_tilde[t] = ct_tilde
+            
+            F[t]       = ft
+            O[t]       = ot
+            I[t]       = it
+            
+            
+        return(H, C, Sigmf, Sigmi, Sigmo, Tanh1, Tanh2, F, O, I, C_tilde)
+    
+    
+    def backward(self, dvalues):
+        
+        #dht = dinputs from the dense layer
+        
+        T       = self.T
+        H       = self.H
+        C       = self.C
+        
+        O       = self.O
+        I       = self.I
+        C_tilde = self.C_tilde
+        
+        X_t     = self.X_t
+        
+        Sigmf   = self.Sigmf
+        Sigmi   = self.Sigmi
+        Sigmo   = self.Sigmo
+        Tanh1   = self.Tanh1
+        Tanh2   = self.Tanh2
+        
+        dht     = dvalues[-1,:].reshape(self.n_neurons,1)
+        
+        #actual BPTT
         for t in reversed(range(T)):
-            # working backwards 
             
-            # get data in form we can work with
-            xt = data[t].reshape(1,1)
-            #backwards prop to get dtan2
-            tan2[t].backwards(dht)
-            #store output of backwards call
-            dtanh2 = tan2[t].dinputs
-
-            # dht with respect to tanh
-            dhtdtanh = np.multiply(O[t],dtanh2)
-
-            # dct with respect to dft
-            dctdft =np.multiply(dhtdtanh,C[t-1])
-
-            #dct with respect to dit
-            dctdit = np.multiply(dhtdtanh,C_Tilde[t])
-
-            #dct with respect to dct_tilde
+            #dy = dinputs[t].reshape(1,1)
+            xt = X_t[t].reshape(1,1)
+            
+            Tanh2[t].backwards(dht)
+            dtanh2 = Tanh2[t].dinputs
+            
+            #np.multiply, not np.dot because it was a element wise 
+            #multiplication in the forward part
+            dhtdtanh = np.multiply(O[t], dtanh2)
+            
+            dctdft       = np.multiply(dhtdtanh,C[t-1])
+            dctdit       = np.multiply(dhtdtanh,C_tilde[t])
             dctdct_tilde = np.multiply(dhtdtanh,I[t])
-
-            #backwards prop to get dtan1
-            tan1[t].backwards(dctdct_tilde)
-            #store output of backwards call
-            dtanh1 = tan1[t].dinputs
-
-            # backwards prop of sig for forget gate
-            sigf[t].backwards(dctdft)
-            dsigmf = sigf[t].dinputs
-
-            # backwards prop of sig for input  gate
-            sigi[t].backwards(dctdit)
-            dsigmi = sigi[t].dinputs
-
-            # backwards prop of sig for output gate
-            sigo[t].backwards(np.multiply(dht,tan2[t].output))
-            dsigmo = sigo[t].dinputs
-
-            # derivative to update
-            dsigmfdUf = np.dot(dsigmf,xt)
-            dsigmfWf = np.dot(dsigmf,H[t-1].T)
             
-            #update forget gates weights and bias 
+            Tanh1[t].backwards(dctdct_tilde)
+            dtanh1 = Tanh1[t].dinputs
+            
+            Sigmf[t].backwards(dctdft)
+            dsigmf = Sigmf[t].dinputs
+            
+            Sigmi[t].backwards(dctdit)
+            dsigmi = Sigmi[t].dinputs
+            
+            Sigmo[t].backwards(np.multiply(dht, Tanh2[t].output))
+            dsigmo = Sigmo[t].dinputs
+            
+            dsigmfdUf = np.dot(dsigmf,xt)
+            dsigmfdWf = np.dot(dsigmf,H[t-1].T)
+            
             self.dUf += dsigmfdUf
-            self.dwf += dsigmfWf
+            self.dWf += dsigmfdWf
             self.dbf += dsigmf
-
-            # derivative to update
+            
             dsigmidUi = np.dot(dsigmi,xt)
             dsigmidWi = np.dot(dsigmi,H[t-1].T)
             
-            # never drink and drive or you will get a..
-            self.dUi +=dsigmidUi
-            self.dwi +=dsigmidWi
+            self.dUi += dsigmidUi
+            self.dWi += dsigmidWi
             self.dbi += dsigmi
-
-            # repeat for output gate
+            
             dsigmodUo = np.dot(dsigmo,xt)
             dsigmodWo = np.dot(dsigmo,H[t-1].T)
-
-            #update weights and bias
-            self.dUo +=dsigmodUo
-            self.dwo +=dsigmodWo
-            self.dbo += dsigmo
-
-            #repeat for dtan
-            dtanh1Ug = np.dot(dtanh1,xt)
-            dtanh1Wg = np.dot(dtanh1,H[t-1].T)
             
-            #update weights and bias                
-            self.dUg +=dtanh1Ug
-            self.dwg += dtanh1Wg
+            self.dUo += dsigmodUo
+            self.dWo += dsigmodWo
+            self.dbo += dsigmo
+            
+            dtanh1dUg = np.dot(dtanh1,xt)
+            dtanh1dWg = np.dot(dtanh1,H[t-1].T)
+            
+            self.dUg += dtanh1dUg
+            self.dWg += dtanh1dWg
             self.dbg += dtanh1
+            
+            #dht
+            dht = np.dot(self.wf, dsigmf) + np.dot(self.wi, dsigmi) +\
+                  np.dot(self.wo, dsigmo) + np.dot(self.wg, dtanh1) +\
+                  dvalues[t-1,:].reshape(self.n_neurons,1)
 
-            #finally, we find derivative of short term memory
-            dht = np.dot(self.wf,dsigmf) + np.dot(self.wi,dsigmi) 
-            +np.dot(self.wo,dsigmo) + np.dot(self.wg,dtanh1) 
-            +dvalues[t-1,:].reshape(self.n_neurons,1)
-        self.short_term_memory = H
-
+        self.H  = H
 class Optimizer_SGD:
 
     #initializing with a default learning rate of 0.1
@@ -337,7 +310,7 @@ class Optimizer_SGD:
             #check if layer has attribute "momentum"
             if not hasattr(layer, 'weight_momentums'):
                 layer.weight_momentums = np.zeros_like(layer.weights)
-                layer.bias_momentums   = np.zeros_like(layer.biases)
+                layer.bias_momentums   = np.zeros_like(layer.bias)
                 
             #now the momentum parts
             weight_updates = self.momentum * layer.weight_momentums - \
@@ -345,7 +318,7 @@ class Optimizer_SGD:
             layer.weight_momentums = weight_updates
             
             bias_updates = self.momentum * layer.bias_momentums - \
-                self.current_learning_rate * layer.dbiases
+                self.current_learning_rate * layer.dbias
             layer.bias_momentums = bias_updates
             
         else:
@@ -386,10 +359,10 @@ class Optimizer_SGD_LSTM:
                 layer.Uo_momentums = np.zeros_like(layer.Uo)
                 layer.Ug_momentums = np.zeros_like(layer.Ug)
                 
-                layer.Wf_momentums = np.zeros_like(layer.Wf)
-                layer.Wi_momentums = np.zeros_like(layer.Wi)
-                layer.Wo_momentums = np.zeros_like(layer.Wo)
-                layer.Wg_momentums = np.zeros_like(layer.Wg)
+                layer.wf_momentums = np.zeros_like(layer.wf)
+                layer.wi_momentums = np.zeros_like(layer.wi)
+                layer.wo_momentums = np.zeros_like(layer.wo)
+                layer.wg_momentums = np.zeros_like(layer.wg)
                 
                 layer.bf_momentums = np.zeros_like(layer.bf)
                 layer.bi_momentums = np.zeros_like(layer.bi)
@@ -414,21 +387,21 @@ class Optimizer_SGD_LSTM:
                 self.current_learning_rate * layer.dUg
             layer.Ug_momentums = Ug_updates
             
-            Wf_updates = self.momentum * layer.Wf_momentums - \
+            Wf_updates = self.momentum * layer.wf_momentums - \
                 self.current_learning_rate * layer.dWf
-            layer.Wf_momentums = Wf_updates
+            layer.wf_momentums = Wf_updates
             
-            Wi_updates = self.momentum * layer.Wi_momentums - \
+            Wi_updates = self.momentum * layer.wi_momentums - \
                 self.current_learning_rate * layer.dWi
-            layer.Wi_momentums = Wi_updates
+            layer.wi_momentums = Wi_updates
             
-            Wo_updates = self.momentum * layer.Wo_momentums - \
+            Wo_updates = self.momentum * layer.wo_momentums - \
                 self.current_learning_rate * layer.dWo
-            layer.Wo_momentums = Wo_updates
+            layer.wo_momentums = Wo_updates
             
-            Wg_updates = self.momentum * layer.Wg_momentums - \
+            Wg_updates = self.momentum * layer.wg_momentums - \
                 self.current_learning_rate * layer.dWg
-            layer.Wg_momentums = Wg_updates
+            layer.wg_momentums = Wg_updates
             
             bf_updates = self.momentum * layer.bf_momentums - \
                 self.current_learning_rate * layer.dbf
@@ -481,3 +454,200 @@ class Optimizer_SGD_LSTM:
         
     def post_update_params(self):
         self.iterations += 1
+
+def RunMyLSTM(X_t, Y_t, n_epoch = 500, n_neurons = 500,\
+             learning_rate = 1e-5, decay = 0, momentum = 0.95, plot_each = 100,\
+             dt = 0):
+
+    #initializing LSTM
+    lstm          = LSTM(n_neurons)
+    T             = max(X_t.shape)
+    dense1        = Dense(n_neurons, T)
+    dense2        = Dense(T, 1)
+    optimizerLSTM = Optimizer_SGD_LSTM(learning_rate, decay, momentum)
+    optimizer     = Optimizer_SGD(learning_rate, decay, momentum)
+    
+    X_plot    = np.arange(0,T)
+    
+    if dt != 0:
+        X_plots = np.arange(0,T + dt)
+        X_plots = X_plots[dt:]
+        X_t_dt  = Y_t[:-dt]
+        Y_t_dt  = Y_t[dt:]
+    else:
+        X_plots = X_plot
+        X_t_dt  = X_t
+        Y_t_dt  = Y_t
+    
+    print("LSTM is running...")
+    
+    for n in range(n_epoch):
+        
+        if dt != 0:
+            Idx      = random.sample(range(T-dt), 2)
+            leftidx  = min(Idx)
+            rightidx = max(Idx)
+            
+            X_t_cut  = X_t_dt[leftidx:rightidx]
+            Y_t_cut  = Y_t_dt[leftidx:rightidx]
+        else:
+            X_t_cut  = X_t_dt
+            Y_t_cut  = Y_t_dt
+        
+        
+        for i in range(5):
+        
+            lstm.forward(X_t_cut)
+            
+            H = np.array(lstm.H)
+            H = H.reshape((H.shape[0],H.shape[1]))
+            
+            #states to Y_hat
+            dense1.forward(H[1:,:])
+            dense2.forward(dense1.output)
+
+            Y_hat = dense2.output
+    
+            dY = Y_hat - Y_t_cut
+            
+            dense2.backward(dY)
+            dense1.backward(dense2.dinputs)
+            
+            lstm.backward(dense1.dinputs)
+            
+            optimizer.pre_update_params()
+            optimizerLSTM.pre_update_params()
+            
+            optimizerLSTM.update_params(lstm)
+            optimizerLSTM.post_update_params()
+            
+            optimizer.update_params(dense1)
+            optimizer.update_params(dense2)
+            optimizer.post_update_params()
+        
+        if n % 50 == 0:
+            print('Plotting epoch ' + str(n) + '...')
+            Y_hat_chunk = Y_hat
+
+            lstm.forward(X_t)
+            
+            H = np.array(lstm.H)
+            H = H.reshape((H.shape[0],H.shape[1]))
+            
+            #states to Y_hat
+            dense1.forward(H[1:,:])
+            dense2.forward(dense1.output)
+
+            Y_hat = dense2.output
+            
+            if dt !=0:
+                dY    = Y_hat[:-dt] - Y_t[dt:]
+            else:
+                dY    = Y_hat - Y_t
+                
+            L = 0.5*np.dot(dY.T,dY)/(T-dt)
+            
+            M = np.max(np.vstack((Y_hat,Y_t)))
+            m = np.min(np.vstack((Y_hat,Y_t)))
+            plt.plot(X_plot, Y_t)
+            plt.plot(X_plots, Y_hat)
+            plt.plot(X_plots[leftidx:rightidx], Y_hat_chunk)
+            plt.legend(['y', '$\hat{y}$', 'current $\hat{y}$ chunk'])
+            plt.title('epoch ' + str(n))
+            if dt != 0:
+                plt.fill_between([X_plot[-1], X_plots[-1]],\
+                              m, M, color = 'k', alpha = 0.1)
+            plt.plot([X_plot[-1], X_plot[-1]], [m, M],'k-',linewidth = 3)
+            plt.title('epoch ' + str(n))
+            plt.show()
+            
+            L = float(L) 
+
+            print(f'\ncurrent MSSE = {L:.3f}')
+            print("Running next 50 epochs..")
+        
+        #updating learning rate, if decay
+        optimizerLSTM.pre_update_params()
+        optimizer.pre_update_params()
+        
+    lstm.forward(X_t)
+    
+    H = np.array(lstm.H)
+    H = H.reshape((H.shape[0],H.shape[1]))
+    
+    #states to Y_hat
+    dense1.forward(H[1:,:])
+    dense2.forward(dense1.output)
+
+    Y_hat = dense2.output
+    
+    if dt !=0:
+        dY    = Y_hat[:-dt] - Y_t[dt:]
+    else:
+        dY    = Y_hat - Y_t
+                
+    L  = 0.5*np.dot(dY.T,dY)/(T-dt)
+    
+    plt.plot(X_plot, Y_t)
+    plt.plot(X_plots, Y_hat)
+    plt.legend(['y', '$\hat{y}$'])
+    plt.title('epoch ' + str(n))
+    if dt != 0:
+        plt.fill_between([X_plot[-1], X_plots[-1]],\
+                      m, M, color = 'k', alpha = 0.1)
+    plt.plot([X_plot[-1], X_plot[-1]], [m, M],'k-',linewidth = 3)
+    plt.title('epoch ' + str(n))
+    plt.show()
+    
+    
+    L = float(L) 
+
+    print(f'Done! MSSE = {L:.3f}')
+    
+    
+    return(lstm, dense1, dense2)
+
+    
+def ApplyMyLSTM(X_t, lstm, dense1, dense2):
+    
+    T       = max(X_t.shape)
+    #Y_hat   = np.zeros((T, 1))
+    H       = lstm.H
+    ht      = H[0]
+    H       = [np.zeros((lstm.n_neurons,1)) for t in range(T+1)]
+    C       = lstm.C
+    ct      = C[0]
+    C       = [np.zeros((lstm.n_neurons,1)) for t in range(T+1)]
+    C_tilde = [np.zeros((lstm.n_neurons,1)) for t in range(T)]
+    F       = [np.zeros((lstm.n_neurons,1)) for t in range(T)]
+    O       = [np.zeros((lstm.n_neurons,1)) for t in range(T)]
+    I       = [np.zeros((lstm.n_neurons,1)) for t in range(T)]
+    
+    #instances of activation functions as expected by Cell
+    Sigmf    = [Sigmoid_Activation() for i in range(T)]
+    Sigmi    = [Sigmoid_Activation() for i in range(T)]
+    Sigmo    = [Sigmoid_Activation() for i in range(T)]
+    
+    Tanh1    = [Tanh_Activation() for i in range(T)]
+    Tanh2    = [Tanh_Activation() for i in range(T)]
+    
+    #we need only the forward part
+    [H, _, _, _, _, _, _, _, _, _, _] = lstm.LSTMCell(X_t, ht, ct,\
+                                        Sigmf, Sigmi, Sigmo,\
+                                        Tanh1, Tanh2,\
+                                        H, C, F, O, I, C_tilde)
+            
+    
+    H = np.array(H)
+    H = H.reshape((H.shape[0],H.shape[1]))
+    
+    #states to Y_hat
+    dense1.forward(H[0:-1])
+    dense2.forward(dense1.output)
+    
+    Y_hat = dense2.output
+
+    
+    return(Y_hat)
+
+
