@@ -6,7 +6,7 @@ LSTMs are designed to prevent the neural network output from decaying or explodi
 
 # Walkthrough
 
-Below is a high level walkthrough of how the code works.
+Below is a high level walkthrough of how the code works. For more details, please refer to the documentation in the code.
 
 ## Phase 1: Forward pass
 
@@ -45,7 +45,6 @@ self.dwg = 0.1*np.random.rand(self.n_neurons,self.n_neurons)
 
 Once we have our values initilzed, we can begin our first pass. We start by calculating the 'forget gate' which determines what ratio of our previous long term memory we are going to utilize for this pass.
 
-
 To determine the forget gates outcome, we find the dot product of our input and our short term memory [t] times our input weights and our short term memory weight for at [t] and add or bias:
 
 ```python
@@ -68,7 +67,6 @@ This value (ft) will be multiplied to our long term memory (C) in the next step.
 ### Step 3: Input Gate
 
 The next step has 2 substeps: (1) calculating what percentage of our new value to add or 'remember' in our long term memory and (2) determining the actual value to add.
-
 
 <p align = "center">
 <img width="421" alt="Screenshot 2024-10-11 at 8 22 40 PM" src="https://github.com/user-attachments/assets/673de1db-7bed-4b7b-9490-df7419ea2777">
@@ -129,4 +127,126 @@ C_tilde[t] = c_tilde
 F[t] = ft
 O[t] = ot
 I[t] = it
+```
+
+### Step 6:
+
+Since we need to make a decision, we need a set of 2 simple dense layers to give us a decision value. These are simple dense layers with no bells or whistles so I'll save you the redundant explanation. Heres what the forward pass of the dense layers looks like:
+
+```python
+ #forward propogation
+def forward(self,inputs):
+    self.output = np.dot(inputs,self.weights) + self.bias
+    self.inputs = inputs
+```
+
+## Phase 2: Back Propogation
+
+Here comes the tricky part. Since there are dozens of 'learnable values' and several sets of weights. Back propogation can be scary. A very simple explaination is we are collecting the gradients of the loss for the different gates, performing the chain rule since they are nested, then multiplying the gradients by our learning rates and subtracting that for each weight set. Heres what the implementation looks like.
+
+```python
+def backward_pass(self,dvalues):
+    # grab our max vector size, short term, and long term memory
+    T = self.max_vector
+    H = self.short_term_memory
+    C = self.long_term_memory
+    # our saved inner gate values
+    O = self.output_gate
+    I = self.input_gate
+    C_Tilde = self.update_gate
+
+    # data
+    data = self.data
+    #activation functions
+
+    sigf = self.Sigf
+    sigi = self.Sigi
+    sigo = self.Sigo
+    tan1 = self.Tan1
+    tan2 = self.Tan2
+
+    #BPTT
+    dht  = dvalues[-1,:].reshape(self.n_neurons,1)
+
+    for t in reversed(range(T)):
+        # working backwards
+
+        # get data in form we can work with
+        xt = data[t].reshape(1,1)
+        #backwards prop to get dtan2
+        tan2[t].backwards(dht)
+        #store output of backwards call
+        dtanh2 = tan2[t].dinputs
+
+        # dht with respect to tanh
+        dhtdtanh = np.multiply(O[t],dtanh2)
+
+        # dct with respect to dft
+        dctdft =np.multiply(dhtdtanh,C[t-1])
+
+        #dct with respect to dit
+        dctdit = np.multiply(dhtdtanh,C_Tilde[t])
+
+        #dct with respect to dct_tilde
+        dctdct_tilde = np.multiply(dhtdtanh,I[t])
+
+        #backwards prop to get dtan1
+        tan1[t].backwards(dctdct_tilde)
+        #store output of backwards call
+        dtanh1 = tan1[t].dinputs
+
+        # backwards prop of sig for forget gate
+        sigf[t].backwards(dctdft)
+        dsigmf = sigf[t].dinputs
+
+        # backwards prop of sig for input  gate
+        sigi[t].backwards(dctdit)
+        dsigmi = sigi[t].dinputs
+
+        # backwards prop of sig for output gate
+        sigo[t].backwards(np.multiply(dht,tan2[t].output))
+        dsigmo = sigo[t].dinputs
+
+        # derivative to update
+        dsigmfdUf = np.dot(dsigmf,xt)
+        dsigmfWf = np.dot(dsigmf,H[t-1].T)
+
+        #update forget gates weights and bias
+        self.dUf += dsigmfdUf
+        self.dwf += dsigmfWf
+        self.dbf += dsigmf
+
+        # derivative to update
+        dsigmidUi = np.dot(dsigmi,xt)
+        dsigmidWi = np.dot(dsigmi,H[t-1].T)
+
+        # never drink and drive or you will get a..
+        self.dUi +=dsigmidUi
+        self.dwi +=dsigmidWi
+        self.dbi += dsigmi
+
+        # repeat for output gate
+        dsigmodUo = np.dot(dsigmo,xt)
+        dsigmodWo = np.dot(dsigmo,H[t-1].T)
+
+        #update weights and bias
+        self.dUo +=dsigmodUo
+        self.dwo +=dsigmodWo
+        self.dbo += dsigmo
+
+        #repeat for dtan
+        dtanh1Ug = np.dot(dtanh1,xt)
+        dtanh1Wg = np.dot(dtanh1,H[t-1].T)
+
+        #update weights and bias
+        self.dUg +=dtanh1Ug
+        self.dwg += dtanh1Wg
+        self.dbg += dtanh1
+
+        #finally, we find derivative of short term memory
+        dht = np.dot(self.wf,dsigmf) + np.dot(self.wi,dsigmi)
+        +np.dot(self.wo,dsigmo) + np.dot(self.wg,dtanh1)
+        +dvalues[t-1,:].reshape(self.n_neurons,1)
+    self.short_term_memory = H
+
 ```
